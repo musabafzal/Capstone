@@ -10,6 +10,8 @@ from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
 import yaml
+import math
+from copy import deepcopy
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -23,7 +25,7 @@ class TLDetector(object):
         self.lights = []
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        self.sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -49,13 +51,27 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
+        # initialize traffic lights as position objects
+
+        stop_line_positions = self.config['stop_line_positions']
+
+        self.stop_line_positions = []
+
+        for i in range(len(stop_line_positions)):
+            self.stop_line_positions.append(PoseStamped())
+            self.stop_line_positions[i].pose.position.x=stop_line_positions[i][0]
+            self.stop_line_positions[i].pose.position.y=stop_line_positions[i][1]
+            self.stop_line_positions[i].pose.position.z=0
+
+
+
         rospy.spin()
 
     def pose_cb(self, msg):
         self.pose = msg
 
     def waypoints_cb(self, waypoints):
-        self.waypoints = waypoints
+        self.waypoints=waypoints
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -71,7 +87,7 @@ class TLDetector(object):
         self.has_image = True
         self.camera_image = msg
         light_wp, state = self.process_traffic_lights()
-
+        
         '''
         Publish upcoming red lights at camera frequency.
         Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
@@ -101,7 +117,27 @@ class TLDetector(object):
 
         """
         #TODO implement
-        return 0
+        
+        if self.waypoints==None:  
+            return -1
+
+
+        closest_distance_found = 10e9
+        closest_index = -1
+        
+
+        for i in range(len(self.waypoints.waypoints)):
+            curr_dist = self.distance(pose.position, self.waypoints.waypoints[i].pose.pose.position)
+            if curr_dist < closest_distance_found:
+                closest_distance_found = curr_dist
+                closest_index = i
+
+        return closest_index
+        
+
+
+    def distance(self, a, b):
+        return math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2 + (b.z - a.z) ** 2)
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
@@ -131,19 +167,39 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        light = None
+        light_bool = None
+        light_wp =None
 
         # List of positions that correspond to the line to stop in front of for a given intersection
-        stop_line_positions = self.config['stop_line_positions']
+        car_position_index=None
+
         if(self.pose):
-            car_position = self.get_closest_waypoint(self.pose.pose)
+            car_position_index = self.get_closest_waypoint(self.pose.pose)
 
         #TODO find the closest visible traffic light (if one exists)
 
-        if light:
-            state = self.get_light_state(light)
+        closest_traffic_light_index =10e9
+
+        if(car_position_index):
+            for stop_line_position in self.stop_line_positions:
+                traffic_light_index= self.get_closest_waypoint(stop_line_position.pose)
+                if traffic_light_index<closest_traffic_light_index and traffic_light_index>car_position_index:
+                    closest_traffic_light_index=traffic_light_index
+                    light_wp =closest_traffic_light_index
+                    light_bool=True
+
+        
+        if light_bool:
+
+
+            # start - remove code after classifier has been implemented
+            for i in range(len(self.stop_line_positions)):
+                if(abs(self.stop_line_positions[i].pose.position.x-self.waypoints.waypoints[light_wp].pose.pose.position.x)<10):
+                    state = self.lights[i].state
+            # end - remove code after classifier has been implemented
+
+            #state = self.get_light_state(light)
             return light_wp, state
-        self.waypoints = None
         return -1, TrafficLight.UNKNOWN
 
 if __name__ == '__main__':
