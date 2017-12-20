@@ -3,10 +3,17 @@
 import rospy
 from std_msgs.msg import Bool
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
-from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 import math
 
-from twist_controller import Controller
+import dbw_helperfunctions
+from styx_msgs.msg import Lane
+
+
+from yaw_controller import YawController
+
+from speed_controller import SpeedController
+from twist_controller import TwistController
 
 '''
 You can build this node only after you have built (or partially built) the `waypoint_updater` node.
@@ -45,6 +52,7 @@ class DBWNode(object):
         steer_ratio = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
+	max_acceleration = rospy.get_param('~max_acceleration',1)
 
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
                                          SteeringCmd, queue_size=1)
@@ -53,10 +61,37 @@ class DBWNode(object):
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',
                                          BrakeCmd, queue_size=1)
 
+	self.dbw_enabled = True
+	self.waypoints = None
+	self.pose = None
+	self.velocity = None
+	self.twist = None
+
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
+	self.twist_controller = TwistController(max_steer_angle)
 
         # TODO: Subscribe to all the topics you need to
+	rospy.Subscriber('/vehicle/dbw_enabled',Bool,self.dbw_cb,queue_size=1)
+        rospy.Subscriber('/final_waypoints', Lane, self.waypoints_cb, queue_size=1)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
+        rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cb, queue_size=1)
+
+        self.speed_controller = SpeedController(vehicle_mass,
+                                                wheel_radius,
+                                                accel_limit,
+                                                decel_limit,
+                                                brake_deadband,
+                                                fuel_capacity,
+                                                max_acceleration)
+
+        self.yaw_controller = YawController(wheel_base,
+                                            steer_ratio,
+                                            0,
+                                            max_lat_accel,
+                                            max_steer_angle)
+
 
         self.loop()
 
@@ -72,7 +107,48 @@ class DBWNode(object):
             #                                                     <any other argument you need>)
             # if <dbw is enabled>:
             #   self.publish(throttle, brake, steer)
-            rate.sleep()
+		if self.twist is None or self.velocity is None:
+			continue
+		try:
+		        # Read target and current velocities
+		        cte = dbw_helperfunctions.cte(self.pose, self.waypoints)
+		        target_velocity = self.waypoints[0].twist.twist.linear.x
+		        current_velocity = self.velocity.linear.x
+
+		        # Get corrected steering using `twist_controller`
+			yaw_steering = self.yaw_controller.get_steering(self.twist.linear.x,self.twist.angular.z,current_velocity)
+		        steer = self.twist_controller.control(cte, self.dbw_enabled)
+
+
+		        throttle, brake = self.speed_controller.control(target_velocity,current_velocity,0.5)
+		except:
+			yaw_steering = 0
+			throttle, brake, steer = 0,0,0
+		
+		
+
+		if self.dbw_enabled:
+			self.publish(throttle, brake, steer + yaw_steering)
+		rate.sleep()
+
+
+    def dbw_cb(self, message):
+        """From the incoming message extract the dbw_enabled variable """
+        self.dbw_enabled = bool(message.data)
+
+    def pose_cb(self,message):
+	self.pose = message.pose
+
+    def twist_cb(self, message):
+        """From the incoming message extract the pose message """
+        self.twist = message.twist
+
+    def current_velocity_cb(self, message):
+        """From the incoming message extract the velocity message """
+        self.velocity = message.twist
+
+    def waypoints_cb(self, message):
+	self.waypoints = message.waypoints
 
     def publish(self, throttle, brake, steer):
         tcmd = ThrottleCmd()
