@@ -55,7 +55,7 @@ class WaypointUpdater(object):
         self.traffic_light_idx = -1
         self.stop_point_idx = -1
 
-        self.speed_limit = 11.1
+        self.speed_limit = 22.2
 
 
         rospy.spin()
@@ -110,6 +110,8 @@ class WaypointUpdater(object):
         if len(self.base_waypoints) == 0 and lane is not None and len(lane.waypoints) > 0:
             #rospy.loginfo("In waypoints callback, passed if.")
             self.base_waypoints = lane.waypoints
+            for wp in self.base_waypoints:
+                wp.twist.twist.linear.x = self.speed_limit
 
         #rospy.loginfo("waypoints length = " + str(len(self.base_waypoints)))
         #rospy.loginfo("waypoints[0].pose.pose.position: " + str(self.base_waypoints[0].pose.pose.position))
