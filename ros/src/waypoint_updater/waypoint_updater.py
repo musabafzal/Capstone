@@ -22,15 +22,15 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 5 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 15 # Number of waypoints we will publish. You can change this number
 
 
 class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
 
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size=1)
 
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
 
@@ -46,19 +46,19 @@ class WaypointUpdater(object):
         rospy.spin()
 
     def pose_cb(self, msg):
-        rospy.loginfo("In pose callback")
+        #rospy.loginfo("In pose callback")
         self.position = msg.pose.position
         orientation = msg.pose.orientation
         quaternion = (orientation.x, orientation.y, orientation.z, orientation.w)
         roll, pitch, yaw = euler_from_quaternion(quaternion)
         self.yaw = yaw
-        rospy.loginfo("Pose callback - got position " + str(msg.pose.position) + ", orientation " + str(
-            msg.pose.orientation) + ", computed yaw: " + str(self.yaw))
+        #rospy.loginfo("Pose callback - got position " + str(msg.pose.position) + ", orientation " + str(
+        #    msg.pose.orientation) + ", computed yaw: " + str(self.yaw))
 
         if len(self.base_waypoints) > 0:
             # compute and publish next waypoints
             next_waypoint_idx = self.get_next_waypoint()
-            rospy.loginfo("next_waypoint_idx = " + str(next_waypoint_idx))
+            #rospy.loginfo("next_waypoint_idx = " + str(next_waypoint_idx))
             self.final_waypoints = []
             for i in range(LOOKAHEAD_WPS):
                 wp = deepcopy(self.base_waypoints[(next_waypoint_idx+i)%len(self.base_waypoints)])
@@ -67,20 +67,20 @@ class WaypointUpdater(object):
             lane.header.frame_id = '/world'
             lane.header.stamp = rospy.Time.now()
             lane.waypoints = self.final_waypoints
-            rospy.loginfo("final_waypoints: " + str(self.final_waypoints))
+            #ospy.loginfo("final_waypoints: " + str(self.final_waypoints))
             self.final_waypoints_pub.publish(lane)
 
 
 
     def waypoints_cb(self, lane):
-        rospy.loginfo("In waypoints callback")
+        #rospy.loginfo("In waypoints callback")
         if len(self.base_waypoints) == 0 and lane is not None and len(lane.waypoints) > 0:
-            rospy.loginfo("In waypoints callback, passed if.")
+            #rospy.loginfo("In waypoints callback, passed if.")
             self.base_waypoints = lane.waypoints
 
-        rospy.loginfo("waypoints length = " + str(len(self.base_waypoints)))
-        rospy.loginfo("waypoints[0].pose.pose.position: " + str(self.base_waypoints[0].pose.pose.position))
-        rospy.loginfo("waypoints[0].pose.pose.orientation: " + str(self.base_waypoints[0].pose.pose.orientation))
+        #rospy.loginfo("waypoints length = " + str(len(self.base_waypoints)))
+        #rospy.loginfo("waypoints[0].pose.pose.position: " + str(self.base_waypoints[0].pose.pose.position))
+        #rospy.loginfo("waypoints[0].pose.pose.orientation: " + str(self.base_waypoints[0].pose.pose.orientation))
 
     # Get closest waypoint index(from P11 - Path planning project)
     def get_closest_waypoint_idx(self):
@@ -102,7 +102,7 @@ class WaypointUpdater(object):
     def get_next_waypoint(self):
 
         next_index = self.get_closest_waypoint_idx()
-        rospy.loginfo("get_closest_waypoint_idx returned: " + str(next_index))
+        #rospy.loginfo("get_closest_waypoint_idx returned: " + str(next_index))
 
         p1 = self.position
         p2 = self.base_waypoints[next_index].pose.pose.position
