@@ -6,7 +6,7 @@ This is the project repository of Team "Carla's little helpers" for the final pr
 
 The team "Carla's little helpers" consists of the following members (listed in alphabetical order):
 
-![Team overview](https://github.com/mathdo/Capstone/tree/master/imgs/team.png "Team overview")
+![Team overview](./imgs/team.png "Team overview")
 
 ## Project Goal
 
@@ -25,7 +25,7 @@ We basically followed the the suggestions provided by Udacity for the final proj
 
 As reference how the different ROS nodes communicate you can have a look into the following diagram provided by Udacity:
 
-![ROS node structure](https://github.com/mathdo/Capstone/tree/master/imgs/final-project-ros-graph-v2.png "ROS node structure")
+![ROS node structure](./imgs/final-project-ros-graph-v2.png "ROS node structure")
 
 
 ### Project hints
